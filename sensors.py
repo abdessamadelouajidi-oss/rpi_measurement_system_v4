@@ -35,17 +35,36 @@ class Accelerometer(Sensor):
         try:
             self.i2c = smbus.SMBus(bus)
             
+            # Try to read device ID first to verify communication
+            try:
+                device_id = self.i2c.read_byte_data(i2c_address, 0x0D)
+                print(f"[ACCELEROMETER] Device ID: 0x{device_id:02X}")
+            except Exception as e:
+                print(f"[ACCELEROMETER] Warning: Could not read device ID - {e}")
+            
             # Put sensor in STANDBY mode
-            self.i2c.write_byte_data(i2c_address, 0x2A, 0x00)
-            time.sleep(0.1)
+            try:
+                self.i2c.write_byte_data(i2c_address, 0x2A, 0x00)
+                time.sleep(0.1)
+                print("[ACCELEROMETER] Set to STANDBY mode")
+            except Exception as e:
+                print(f"[ACCELEROMETER] Error setting STANDBY: {e}")
             
             # Set range to ±8g (0x02 for ±8g)
-            self.i2c.write_byte_data(i2c_address, 0x0E, 0x02)
-            time.sleep(0.1)
+            try:
+                self.i2c.write_byte_data(i2c_address, 0x0E, 0x02)
+                time.sleep(0.1)
+                print("[ACCELEROMETER] Set range to ±8g")
+            except Exception as e:
+                print(f"[ACCELEROMETER] Error setting range: {e}")
             
             # Put sensor in ACTIVE mode
-            self.i2c.write_byte_data(i2c_address, 0x2A, 0x01)
-            time.sleep(0.5)
+            try:
+                self.i2c.write_byte_data(i2c_address, 0x2A, 0x01)
+                time.sleep(0.5)
+                print("[ACCELEROMETER] Set to ACTIVE mode")
+            except Exception as e:
+                print(f"[ACCELEROMETER] Error setting ACTIVE: {e}")
             
             print("[ACCELEROMETER] Initialized on I2C address 0x{:02X}".format(i2c_address))
         except Exception as e:
@@ -93,11 +112,11 @@ class Accelerometer(Sensor):
                 z_raw -= 4096
             
             # Convert to m/s² 
-            # For ±8g: sensitivity is 1mg per count (after division by 16)
-            # So 1 unit = 0.001g = 0.001 * 9.81 m/s² = 0.00981 m/s²
-            x = x_raw * 0.00981
-            y = y_raw * 0.00981
-            z = z_raw * 0.00981
+            # For ±8g range: sensitivity is 256 counts/g (after division by 16)
+            # So 1 count = 1/256 g = (9.81/256) m/s² = 0.0383 m/s²
+            x = (x_raw / 256.0) * 9.81
+            y = (y_raw / 256.0) * 9.81
+            z = (z_raw / 256.0) * 9.81
             
             return {
                 'x': round(x, 2),
