@@ -21,7 +21,7 @@ class Accelerometer(Sensor):
     Provides x, y, z acceleration values.
     """
     
-    def __init__(self, i2c_address=0x1C, bus=1):
+    def __init__(self, i2c_address=0x1D, bus=1):
         """
         Initialize the accelerometer.
         
@@ -36,9 +36,8 @@ class Accelerometer(Sensor):
             self.i2c = smbus.SMBus(bus)
             
             # Step 1: Put sensor in STANDBY mode (clear ACTIVE bit)
-            ctrl_reg1 = self.i2c.read_byte_data(i2c_address, 0x2A)
             self.i2c.write_byte_data(i2c_address, 0x2A, ctrl_reg1 & 0xFE)  # Clear bit 0
-            time.sleep(0.1)
+            
             
             # Step 2: Set range to ±8g (register 0x0E, bits 0-1 = 10 for ±8g)
             ctrl_reg2 = self.i2c.read_byte_data(i2c_address, 0x0E)
@@ -75,7 +74,7 @@ class Accelerometer(Sensor):
             # Read accel data from registers 0x01 to 0x06 (6 bytes)
             # Registers: OUT_X_MSB (0x01), OUT_X_LSB (0x02), OUT_Y_MSB (0x03), 
             #            OUT_Y_LSB (0x04), OUT_Z_MSB (0x05), OUT_Z_LSB (0x06)
-            accel_data = self.i2c.read_i2c_block_data(self.i2c_address, 0x01, 6)
+            accel_data = self.i2c.read_i2c_block_data(self.i2c_address, 0x00, 7)
             
             # MMA8452 data format: 14-bit signed, right-justified in 16-bit register
             # Extract 14-bit values (ignore lower 2 bits)
