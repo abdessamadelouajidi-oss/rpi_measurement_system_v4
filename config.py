@@ -23,5 +23,5 @@ READING_INTERVAL = 1.0  # Read vibration every 1.0 second while measuring
 CSV_OUTPUT_PATH = "measurements.csv"  # Saved after shutdown
 
 # USB copy settings
-USB_LABEL = "MEASUREMENTS"  # Label of USB drive to copy to
+USB_LABEL = "USB Drive"  # Label of USB drive to copy to
 USB_CHECK_INTERVAL = 1.0  # Seconds between USB mount checks
