@@ -112,7 +112,7 @@ class Accelerometer(Sensor):
         if self.i2c is None:
             return {'x': 0.5, 'y': -0.3, 'z': 9.8}
 
-        try:1
+        try:
             # Read 6 bytes: X_MSB, X_LSB, Y_MSB, Y_LSB, Z_MSB, Z_LSB
             data = self.i2c.read_i2c_block_data(self.i2c_address, self.OUT_X_MSB, 6)
 
