@@ -168,7 +168,6 @@ class MeasurementSystem:
             print("[USB] No readings to copy yet.")
             return
 
-        self.usb_copy_led.set_copying()
         self.save_readings_to_csv()
 
         success = False
@@ -181,10 +180,8 @@ class MeasurementSystem:
             except Exception as e:
                 print(f"[USB] Copy failed for {mount_path}: {e}")
 
-        if success:
-            self.usb_copy_led.set_copied()
-        else:
-            self.usb_copy_led.set_idle()
+        if not success:
+            print("[USB] No copies succeeded.")
 
     def _check_usb_copy(self):
         """Detect USB insertion/removal and copy CSV when inserted."""
@@ -195,7 +192,9 @@ class MeasurementSystem:
             self._copy_csv_to_mounts(sorted(new_mounts))
 
         self.usb_seen_mounts = mounts
-        if not mounts:
+        if mounts:
+            self.usb_copy_led.set_copied()
+        else:
             self.usb_copy_led.set_idle()
     
     def run(self):
