@@ -107,9 +107,10 @@ class PowerButton(Button):
             
             hold_time = time.time() - self.press_start_time
             if hold_time > self.hold_threshold:
-                print(f"[{self.name}] Held for {round(hold_time, 2)}s - Shutting down...")
+                print(f"[{self.name}] Held for {round(hold_time, 2)}s - Stopping measurement...")
                 if self.shutdown_callback:
                     self.shutdown_callback()
+                self.press_start_time = None
                 return True
         else:
             # Button released

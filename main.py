@@ -96,11 +96,13 @@ class MeasurementSystem:
             self.idle_led.turn_on()
     
     def on_shutdown(self):
-        """Handle POWER button shutdown."""
+        """Handle POWER button hold - stop measuring and return to IDLE."""
         if self.state_machine.is_measuring():
             self.state_machine.stop_measurement()
-        print("\nShutting down...")
-        self.running = False
+        self.measuring_led.turn_off()
+        self.idle_led.turn_on()
+        self.save_readings_to_csv()
+        print("\n[POWER] Measurement stopped. Returned to IDLE.")
     
     def read_vibration(self):
         """Read accelerometer and print vibration data."""
@@ -204,7 +206,7 @@ class MeasurementSystem:
     def run(self):
         """Main application loop."""
         print("System ready. Press BEGIN button to start measuring.")
-        print("Hold POWER button for 2+ seconds to shutdown.")
+        print("Hold POWER button for 2+ seconds to stop and save.")
         print("-" * 60)
         print()
         
