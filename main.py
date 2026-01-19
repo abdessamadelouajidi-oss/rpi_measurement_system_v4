@@ -134,26 +134,30 @@ class MeasurementSystem:
         except Exception as e:
             print(f"[ERROR] Failed to read accelerometer: {e}")
 
+    def _is_removable_mount(self, device, fstype, mount_point):
+        if not device.startswith(("/dev/sd", "/dev/mmcblk")):
+            return False
+        if fstype not in {"vfat", "exfat", "ext4"}:
+            return False
+        return mount_point.startswith("/media") or mount_point.startswith("/run/media")
+
     def _scan_usb_mounts(self):
         """Return all mounted USB paths under /media and /run/media."""
         if not self.usb_copy_any:
             return []
 
         mounts = set()
-        for base in ("/media", "/run/media"):
-            if not os.path.isdir(base):
-                continue
-            for entry in os.scandir(base):
-                if not entry.is_dir():
-                    continue
-                subdirs = [
-                    sub.path for sub in os.scandir(entry.path)
-                    if sub.is_dir()
-                ]
-                if subdirs:
-                    mounts.update(subdirs)
-                else:
-                    mounts.add(entry.path)
+        try:
+            with open("/proc/mounts", "r") as mounts_file:
+                for line in mounts_file:
+                    parts = line.split()
+                    if len(parts) < 3:
+                        continue
+                    device, mount_point, fstype = parts[0], parts[1], parts[2]
+                    if self._is_removable_mount(device, fstype, mount_point):
+                        mounts.add(mount_point)
+        except Exception as e:
+            print(f"[USB] Failed to scan mounts: {e}")
         return sorted(mounts)
 
     def _build_usb_csv_path(self, mount_path):
