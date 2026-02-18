@@ -7,7 +7,7 @@ TOF_I2C_ADDRESS = 0x29  # Default VL53L0X address
 
 # Hall sensor (spin counter)
 HALL_ENABLED = True  # Set False to disable spin counting
-HALL_SENSOR_PIN = 22  # GPIO pin for Hall sensor input
+HALL_SENSOR_PIN = 17  # GPIO pin for Hall sensor input
 HALL_PULL_UP = True  # Use pull-up resistor if sensor is open-collector
 
 # Measurement settings
