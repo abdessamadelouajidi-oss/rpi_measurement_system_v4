@@ -174,10 +174,10 @@ class HallSensor:
             GPIO.setup(pin, GPIO.IN, pull_up_down=pull)
             GPIO.add_event_detect(
                 pin,
-                GPIO.FALLING,
+                GPIO.RISING,
                 callback=self._on_detected,
             )
-            print(f"[{self.name}] Initialized on GPIO {pin} (edge=FALLING)")
+            print(f"[{self.name}] Initialized on GPIO {pin} (edge=RISING)")
         except ImportError:
             print(f"[{self.name}] Warning: RPi.GPIO not available, using simulated mode")
         except Exception as e:
