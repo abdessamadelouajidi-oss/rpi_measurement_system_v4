@@ -1,27 +1,23 @@
 """Main application loop for the Raspberry Pi vibration measurement system."""
 
 import time
-import sys
 import csv
 import os
 import shutil
-from state_machine import StateMachine
-from sensors import Accelerometer, ToFSensor
-from buttons import BeginButton, PowerButton
-from leds import IdleLED, MeasuringLED, CopyLED
+import signal
+from sensors import Accelerometer, ToFSensor, HallSensor
 from config import (
     READING_INTERVAL,
-    BEGIN_BUTTON_PIN,
-    POWER_BUTTON_PIN,
     ACCELEROMETER_I2C_ADDRESS,
     TOF_ENABLED,
     TOF_I2C_ADDRESS,
-    IDLE_LED_PIN,
-    MEASURING_LED_PIN,
-    MEASURING_LED_BLINK_INTERVAL,
+    HALL_ENABLED,
+    HALL_SENSOR_PIN,
+    HALL_PULL_UP,
+    HALL_EDGE,
+    HALL_DEBOUNCE_MS,
+    HALL_MIN_INTERVAL_S,
     CSV_OUTPUT_PATH,
-    USB_COPY_LED_PIN,
-    USB_COPY_LED_BLINK_INTERVAL,
     USB_COPY_ANY,
     USB_CHECK_INTERVAL,
 )
@@ -37,9 +33,6 @@ class MeasurementSystem:
         print("=" * 60)
         print()
         
-        # Initialize state machine
-        self.state_machine = StateMachine()
-        
         # Initialize sensor
         print("Initializing accelerometer...")
         self.accelerometer = Accelerometer(i2c_address=ACCELEROMETER_I2C_ADDRESS)
@@ -50,30 +43,19 @@ class MeasurementSystem:
             print("Initializing VL53L0X ToF sensor...")
             self.tof = ToFSensor(i2c_address=TOF_I2C_ADDRESS)
             print()
-        
-        # Initialize buttons
-        print("Initializing buttons...")
-        self.begin_button = BeginButton(pin=BEGIN_BUTTON_PIN)
-        self.begin_button.set_callback(self.on_begin_button_pressed)
-        
-        self.power_button = PowerButton(pin=POWER_BUTTON_PIN)
-        self.power_button.set_shutdown_callback(self.on_shutdown)
-        print()
-        
-        # Initialize LEDs
-        print("Initializing LEDs...")
-        self.idle_led = IdleLED(pin=IDLE_LED_PIN)
-        self.measuring_led = MeasuringLED(
-            pin=MEASURING_LED_PIN,
-            blink_interval=MEASURING_LED_BLINK_INTERVAL
-        )
-        self.idle_led.turn_on()  # Start with IDLE LED on
-        self.usb_copy_led = CopyLED(
-            pin=USB_COPY_LED_PIN,
-            blink_interval=USB_COPY_LED_BLINK_INTERVAL
-        )
-        self.usb_copy_led.set_idle()
-        print()
+
+        self.hall_sensor = None
+        if HALL_ENABLED:
+            print("Initializing Hall sensor...")
+            self.hall_sensor = HallSensor(
+                pin=HALL_SENSOR_PIN,
+                pull_up=HALL_PULL_UP,
+                edge=HALL_EDGE,
+                debounce_ms=HALL_DEBOUNCE_MS,
+                min_interval_s=HALL_MIN_INTERVAL_S,
+            )
+            print()
+            self.hall_sensor.reset_count()
         
         self.running = True
         self.last_reading_time = 0
@@ -83,32 +65,18 @@ class MeasurementSystem:
         self.usb_seen_mounts = set()
         self.last_usb_check_time = 0
     
-    def on_begin_button_pressed(self):
-        """Handle BEGIN button press - toggle measurement state."""
-        self.state_machine.toggle_measurement()
-        
-        # Update LED states
-        if self.state_machine.is_measuring():
-            self.idle_led.turn_off()
-            # Don't turn on measuring LED here - it will blink in the main loop
-        else:
-            self.measuring_led.turn_off()
-            self.idle_led.turn_on()
-    
-    def on_shutdown(self):
-        """Handle POWER button hold - stop measuring and return to IDLE."""
-        if self.state_machine.is_measuring():
-            self.state_machine.stop_measurement()
-        self.measuring_led.turn_off()
-        self.idle_led.turn_on()
-        self.save_readings_to_csv()
-        print("\n[POWER] Measurement stopped. Returned to IDLE.")
+    def request_shutdown(self, signum=None, _frame=None):
+        """Request a clean shutdown (used by SIGTERM/SIGINT)."""
+        if signum is not None:
+            print(f"\n[SHUTDOWN] Signal {signum} received. Stopping...")
+        self.running = False
     
     def read_vibration(self):
         """Read accelerometer and print vibration data."""
         try:
             accel_data = self.accelerometer.read()
             tof_data = self.tof.read() if self.tof else {"distance_mm": None}
+            spin_count = self.hall_sensor.get_count() if self.hall_sensor else 0
             
             timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
             self.readings.append(
@@ -118,6 +86,7 @@ class MeasurementSystem:
                     "y": accel_data["y"],
                     "z": accel_data["z"],
                     "distance_mm": tof_data["distance_mm"],
+                    "spin_count": spin_count,
                 }
             )
             distance_text = (
@@ -198,35 +167,21 @@ class MeasurementSystem:
             self._copy_csv_to_mounts(sorted(new_mounts))
 
         self.usb_seen_mounts = mounts
-        if mounts:
-            self.usb_copy_led.set_copied()
-        else:
-            self.usb_copy_led.set_idle()
     
     def run(self):
         """Main application loop."""
-        print("System ready. Press BEGIN button to start measuring.")
-        print("Hold POWER button for 2+ seconds to stop and save.")
+        signal.signal(signal.SIGTERM, self.request_shutdown)
+        signal.signal(signal.SIGINT, self.request_shutdown)
+
+        print("System started. Running continuously.")
+        print("Stop the service or press Ctrl+C to stop and save.")
         print("-" * 60)
         print()
         
         try:
             while self.running:
-                # Check button states
-                self.begin_button.check_press()
-                self.power_button.check_hold()
-                
-                # Update LEDs based on state
-                if self.state_machine.is_measuring():
-                    self.measuring_led.update()  # Blink the measuring LED
-                self.usb_copy_led.update()
-                
-                # Read accelerometer if measuring
                 current_time = time.time()
-                if (
-                    self.state_machine.is_measuring() and
-                    current_time - self.last_reading_time >= READING_INTERVAL
-                ):
+                if current_time - self.last_reading_time >= READING_INTERVAL:
                     self.read_vibration()
                     self.last_reading_time = current_time
 
@@ -239,7 +194,7 @@ class MeasurementSystem:
         
         except KeyboardInterrupt:
             print("\n\nKeyboard interrupt received.")
-            self.on_shutdown()
+            self.request_shutdown()
         
         finally:
             self.cleanup()
@@ -254,7 +209,7 @@ class MeasurementSystem:
             with open(self.csv_output_path, "w", newline="") as csv_file:
                 writer = csv.DictWriter(
                     csv_file,
-                    fieldnames=["timestamp", "x", "y", "z", "distance_mm"],
+                    fieldnames=["timestamp", "x", "y", "z", "distance_mm", "spin_count"],
                 )
                 writer.writeheader()
                 writer.writerows(self.readings)
@@ -265,6 +220,8 @@ class MeasurementSystem:
     def cleanup(self):
         """Clean up GPIO and other resources."""
         print("Cleaning up...")
+        if self.hall_sensor:
+            self.hall_sensor.cleanup()
         try:
             import RPi.GPIO as GPIO
             GPIO.cleanup()

@@ -1,5 +1,6 @@
 import smbus
 import time
+import threading
 from abc import ABC, abstractmethod
 
 
@@ -145,6 +146,90 @@ class Accelerometer(Sensor):
         if raw > 8191:
             raw -= 16384
         return raw
+
+
+class HallSensor:
+    """
+    Hall effect sensor for counting rotations using GPIO edge detection.
+    """
+
+    def __init__(
+        self,
+        pin,
+        pull_up=True,
+        edge="FALLING",
+        debounce_ms=10,
+        min_interval_s=0.0,
+        name="HALL_SENSOR",
+    ):
+        self.pin = pin
+        self.pull_up = pull_up
+        self.edge = edge
+        self.debounce_ms = debounce_ms
+        self.min_interval_s = min_interval_s
+        self.name = name
+        self.GPIO = None
+        self._count = 0
+        self._last_event_time = 0.0
+        self._lock = threading.Lock()
+
+        try:
+            import RPi.GPIO as GPIO
+
+            self.GPIO = GPIO
+            GPIO.setmode(GPIO.BCM)
+            pull = GPIO.PUD_UP if pull_up else GPIO.PUD_DOWN
+            GPIO.setup(pin, GPIO.IN, pull_up_down=pull)
+
+            edge_const = self._map_edge(edge)
+            GPIO.add_event_detect(
+                pin,
+                edge_const,
+                callback=self._on_edge,
+                bouncetime=max(0, int(debounce_ms)),
+            )
+            print(f"[{self.name}] Initialized on GPIO {pin} (edge={edge})")
+        except ImportError:
+            print(f"[{self.name}] Warning: RPi.GPIO not available, using simulated mode")
+        except Exception as e:
+            print(f"[{self.name}] Warning: Could not initialize - {e}")
+
+    def _map_edge(self, edge):
+        if self.GPIO is None:
+            return None
+        if isinstance(edge, int):
+            return edge
+        edge_upper = str(edge).upper()
+        if edge_upper == "RISING":
+            return self.GPIO.RISING
+        if edge_upper == "BOTH":
+            return self.GPIO.BOTH
+        return self.GPIO.FALLING
+
+    def _on_edge(self, _channel):
+        now = time.monotonic()
+        if self.min_interval_s and (now - self._last_event_time) < self.min_interval_s:
+            return
+        self._last_event_time = now
+        with self._lock:
+            self._count += 1
+
+    def get_count(self):
+        with self._lock:
+            return self._count
+
+    def reset_count(self):
+        with self._lock:
+            self._count = 0
+        self._last_event_time = 0.0
+
+    def cleanup(self):
+        if self.GPIO is None:
+            return
+        try:
+            self.GPIO.remove_event_detect(self.pin)
+        except Exception:
+            pass
 
 
 class ToFSensor(Sensor):
