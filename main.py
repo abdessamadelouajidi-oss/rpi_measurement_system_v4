@@ -22,35 +22,35 @@ from config import (
 
 class MeasurementSystem:
     """Main vibration measurement system coordinator."""
-    
+
     def __init__(self):
         """Initialize the measurement system."""
         print("=" * 60)
         print("Raspberry Pi Vibration Measurement System")
         print("=" * 60)
         print()
-        
+
         # Initialize sensor
-        print("Initializing accelerometer...")
+        print("Initializing accelerometer.")
         self.accelerometer = Accelerometer(i2c_address=ACCELEROMETER_I2C_ADDRESS)
         print()
 
         self.tof = None
         if TOF_ENABLED:
-            print("Initializing VL53L0X ToF sensor...")
+            print("Initializing VL53L0X ToF sensor.")
             self.tof = ToFSensor(i2c_address=TOF_I2C_ADDRESS)
             print()
 
         self.hall_sensor = None
         if HALL_ENABLED:
-            print("Initializing Hall sensor...")
+            print("Initializing Hall sensor.")
             self.hall_sensor = HallSensor(
                 pin=HALL_SENSOR_PIN,
                 pull_up=HALL_PULL_UP,
             )
             print()
             self.hall_sensor.reset_count()
-        
+
         self.running = True
         self.last_reading_time = 0
         self.readings = []
@@ -58,20 +58,20 @@ class MeasurementSystem:
         self.usb_copy_any = USB_COPY_ANY
         self.usb_seen_mounts = set()
         self.last_usb_check_time = 0
-    
+
     def request_shutdown(self, signum=None, _frame=None):
         """Request a clean shutdown (used by SIGTERM/SIGINT)."""
         if signum is not None:
             print(f"\n[SHUTDOWN] Signal {signum} received. Stopping...")
         self.running = False
-    
+
     def read_vibration(self):
         """Read accelerometer and print vibration data."""
         try:
             accel_data = self.accelerometer.read()
             tof_data = self.tof.read() if self.tof else {"distance_mm": None}
             spin_count = self.hall_sensor.get_count() if self.hall_sensor else 0
-            
+
             timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
             self.readings.append(
                 {
@@ -162,7 +162,7 @@ class MeasurementSystem:
             self._copy_csv_to_mounts(sorted(new_mounts))
 
         self.usb_seen_mounts = mounts
-    
+
     def run(self):
         """Main application loop."""
         signal.signal(signal.SIGTERM, self.request_shutdown)
@@ -172,7 +172,7 @@ class MeasurementSystem:
         print("Stop the service or press Ctrl+C to stop and save.")
         print("-" * 60)
         print()
-        
+
         try:
             while self.running:
                 current_time = time.time()
@@ -183,14 +183,13 @@ class MeasurementSystem:
                 if current_time - self.last_usb_check_time >= USB_CHECK_INTERVAL:
                     self.last_usb_check_time = current_time
                     self._check_usb_copy()
-                
-                # Small sleep to avoid busy-waiting
+
                 time.sleep(0.05)
-        
+
         except KeyboardInterrupt:
             print("\n\nKeyboard interrupt received.")
             self.request_shutdown()
-        
+
         finally:
             self.cleanup()
 
@@ -211,7 +210,7 @@ class MeasurementSystem:
             print(f"[CSV] Saved {len(self.readings)} readings to {self.csv_output_path}")
         except Exception as e:
             print(f"[CSV] Failed to write CSV file: {e}")
-    
+
     def cleanup(self):
         """Clean up GPIO and other resources."""
         print("Cleaning up...")
@@ -227,7 +226,7 @@ class MeasurementSystem:
         self.save_readings_to_csv()
         if self.hall_sensor:
             self.hall_sensor.reset_count()
-        
+
         print("=" * 60)
         print("System shutdown complete.")
         print("=" * 60)
