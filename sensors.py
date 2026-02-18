@@ -150,7 +150,7 @@ class Accelerometer(Sensor):
 
 class HallSensor:
     """
-    Hall effect sensor for counting rotations using GPIO edge detection.
+    Hall effect sensor for counting rotations using GPIO polling.
     """
 
     def __init__(
@@ -171,6 +171,7 @@ class HallSensor:
         self.GPIO = None
         self._count = 0
         self._last_event_time = 0.0
+        self._last_state = None
         self._lock = threading.Lock()
 
         try:
@@ -180,39 +181,36 @@ class HallSensor:
             GPIO.setmode(GPIO.BCM)
             pull = GPIO.PUD_UP if pull_up else GPIO.PUD_DOWN
             GPIO.setup(pin, GPIO.IN, pull_up_down=pull)
-
-            edge_const = self._map_edge(edge)
-            GPIO.add_event_detect(
-                pin,
-                edge_const,
-                callback=self._on_edge,
-                bouncetime=max(0, int(debounce_ms)),
-            )
-            print(f"[{self.name}] Initialized on GPIO {pin} (edge={edge})")
+            if self.min_interval_s <= 0 and self.debounce_ms > 0:
+                self.min_interval_s = self.debounce_ms / 1000.0
+            print(f"[{self.name}] Initialized on GPIO {pin} (polling)")
         except ImportError:
             print(f"[{self.name}] Warning: RPi.GPIO not available, using simulated mode")
         except Exception as e:
             print(f"[{self.name}] Warning: Could not initialize - {e}")
 
-    def _map_edge(self, edge):
+    def update(self):
         if self.GPIO is None:
-            return None
-        if isinstance(edge, int):
-            return edge
-        edge_upper = str(edge).upper()
-        if edge_upper == "RISING":
-            return self.GPIO.RISING
-        if edge_upper == "BOTH":
-            return self.GPIO.BOTH
-        return self.GPIO.FALLING
-
-    def _on_edge(self, _channel):
-        now = time.monotonic()
-        if self.min_interval_s and (now - self._last_event_time) < self.min_interval_s:
             return
-        self._last_event_time = now
-        with self._lock:
-            self._count += 1
+        try:
+            state = 1 if self.GPIO.input(self.pin) else 0
+        except Exception:
+            return
+
+        if self._last_state is None:
+            self._last_state = state
+            return
+
+        if self._last_state == 1 and state == 0:
+            now = time.monotonic()
+            if self.min_interval_s and (now - self._last_event_time) < self.min_interval_s:
+                self._last_state = state
+                return
+            self._last_event_time = now
+            with self._lock:
+                self._count += 1
+
+        self._last_state = state
 
     def get_count(self):
         with self._lock:
@@ -222,14 +220,10 @@ class HallSensor:
         with self._lock:
             self._count = 0
         self._last_event_time = 0.0
+        self._last_state = None
 
     def cleanup(self):
-        if self.GPIO is None:
-            return
-        try:
-            self.GPIO.remove_event_detect(self.pin)
-        except Exception:
-            pass
+        return
 
 
 class ToFSensor(Sensor):

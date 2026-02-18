@@ -181,6 +181,8 @@ class MeasurementSystem:
         try:
             while self.running:
                 current_time = time.time()
+                if self.hall_sensor:
+                    self.hall_sensor.update()
                 if current_time - self.last_reading_time >= READING_INTERVAL:
                     self.read_vibration()
                     self.last_reading_time = current_time
@@ -230,6 +232,8 @@ class MeasurementSystem:
             pass
 
         self.save_readings_to_csv()
+        if self.hall_sensor:
+            self.hall_sensor.reset_count()
         
         print("=" * 60)
         print("System shutdown complete.")
