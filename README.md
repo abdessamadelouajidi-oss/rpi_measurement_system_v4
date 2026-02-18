@@ -80,7 +80,7 @@ Stop the service or press Ctrl+C to stop and save.
 
 - All pins and options are configurable in `config.py`
 - The Hall sensor count is logged per row as `spin_count`
-- If you see double counts, increase `HALL_DEBOUNCE_MS` or `HALL_MIN_INTERVAL_S`
+- If you see double counts, consider a stronger pull-up resistor or cleaner wiring.
 - Press Ctrl+C to safely stop when running manually
 
 ## Dependencies

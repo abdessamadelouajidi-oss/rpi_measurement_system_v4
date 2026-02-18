@@ -14,7 +14,6 @@ from config import (
     HALL_ENABLED,
     HALL_SENSOR_PIN,
     HALL_PULL_UP,
-    HALL_DEBOUNCE_MS,
     CSV_OUTPUT_PATH,
     USB_COPY_ANY,
     USB_CHECK_INTERVAL,
@@ -48,7 +47,6 @@ class MeasurementSystem:
             self.hall_sensor = HallSensor(
                 pin=HALL_SENSOR_PIN,
                 pull_up=HALL_PULL_UP,
-                debounce_ms=HALL_DEBOUNCE_MS,
             )
             print()
             self.hall_sensor.reset_count()
@@ -177,8 +175,6 @@ class MeasurementSystem:
         try:
             while self.running:
                 current_time = time.time()
-                if self.hall_sensor:
-                    self.hall_sensor.update()
                 if current_time - self.last_reading_time >= READING_INTERVAL:
                     self.read_vibration()
                     self.last_reading_time = current_time

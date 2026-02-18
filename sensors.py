@@ -151,7 +151,6 @@ class Accelerometer(Sensor):
 class HallSensor:
     """
     Hall effect sensor for counting rotations.
-
     Increments a counter each time the magnet is detected.
     """
 
@@ -159,36 +158,15 @@ class HallSensor:
         self,
         pin,
         pull_up=True,
-        debounce_ms=10,
         name="HALL_SENSOR",
     ):
         self.pin = pin
         self.pull_up = pull_up
-        self.debounce_ms = debounce_ms
         self.name = name
         self.GPIO = None
-        self._device = None
         self._count = 0
-        self._last_event_time = 0.0
-        self._last_state = None
-        self._active_level = 0 if pull_up else 1
         self._lock = threading.Lock()
 
-        # Preferred: gpiozero (simple and stable edge detection)
-        try:
-            from gpiozero import DigitalInputDevice
-
-            bounce_time = None
-            if self.debounce_ms and self.debounce_ms > 0:
-                bounce_time = self.debounce_ms / 1000.0
-            self._device = DigitalInputDevice(pin, pull_up=pull_up, bounce_time=bounce_time)
-            self._device.when_activated = self._on_detected
-            print(f"[{self.name}] Initialized on GPIO {pin} (gpiozero)")
-            return
-        except Exception as e:
-            print(f"[{self.name}] gpiozero unavailable, fallback to polling: {e}")
-
-        # Fallback: simple polling using RPi.GPIO
         try:
             import RPi.GPIO as GPIO
 
@@ -196,38 +174,20 @@ class HallSensor:
             GPIO.setmode(GPIO.BCM)
             pull = GPIO.PUD_UP if pull_up else GPIO.PUD_DOWN
             GPIO.setup(pin, GPIO.IN, pull_up_down=pull)
-            print(f"[{self.name}] Initialized on GPIO {pin} (polling)")
+            GPIO.add_event_detect(
+                pin,
+                GPIO.FALLING,
+                callback=self._on_detected,
+            )
+            print(f"[{self.name}] Initialized on GPIO {pin} (edge=FALLING)")
         except ImportError:
             print(f"[{self.name}] Warning: RPi.GPIO not available, using simulated mode")
         except Exception as e:
             print(f"[{self.name}] Warning: Could not initialize - {e}")
 
-    def _on_detected(self):
+    def _on_detected(self, _channel=None):
         with self._lock:
             self._count += 1
-
-    def update(self):
-        if self.GPIO is None:
-            return
-        try:
-            state = 1 if self.GPIO.input(self.pin) else 0
-        except Exception:
-            return
-
-        if self._last_state is None:
-            self._last_state = state
-            return
-
-        if self._last_state != self._active_level and state == self._active_level:
-            now = time.monotonic()
-            if self.debounce_ms and (now - self._last_event_time) < (self.debounce_ms / 1000.0):
-                self._last_state = state
-                return
-            self._last_event_time = now
-            with self._lock:
-                self._count += 1
-
-        self._last_state = state
 
     def get_count(self):
         with self._lock:
@@ -236,15 +196,14 @@ class HallSensor:
     def reset_count(self):
         with self._lock:
             self._count = 0
-        self._last_event_time = 0.0
-        self._last_state = None
 
     def cleanup(self):
-        if self._device is not None:
-            try:
-                self._device.close()
-            except Exception:
-                pass
+        if self.GPIO is None:
+            return
+        try:
+            self.GPIO.remove_event_detect(self.pin)
+        except Exception:
+            pass
 
 
 class ToFSensor(Sensor):
