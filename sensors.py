@@ -1,6 +1,5 @@
 import smbus
 import time
-import threading
 from abc import ABC, abstractmethod
 
 
@@ -165,7 +164,6 @@ class HallSensor:
         self.name = name
         self.GPIO = None
         self._count = 0
-        self._lock = threading.Lock()
 
         try:
             import RPi.GPIO as GPIO
@@ -186,16 +184,13 @@ class HallSensor:
             print(f"[{self.name}] Warning: Could not initialize - {e}")
 
     def _on_detected(self, _channel=None):
-        with self._lock:
-            self._count += 1
+        self._count += 1
 
     def get_count(self):
-        with self._lock:
-            return self._count
+        return self._count
 
     def reset_count(self):
-        with self._lock:
-            self._count = 0
+        self._count = 0
 
     def cleanup(self):
         if self.GPIO is None:
