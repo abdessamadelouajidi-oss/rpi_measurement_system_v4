@@ -14,9 +14,7 @@ from config import (
     HALL_ENABLED,
     HALL_SENSOR_PIN,
     HALL_PULL_UP,
-    HALL_EDGE,
     HALL_DEBOUNCE_MS,
-    HALL_MIN_INTERVAL_S,
     CSV_OUTPUT_PATH,
     USB_COPY_ANY,
     USB_CHECK_INTERVAL,
@@ -50,9 +48,7 @@ class MeasurementSystem:
             self.hall_sensor = HallSensor(
                 pin=HALL_SENSOR_PIN,
                 pull_up=HALL_PULL_UP,
-                edge=HALL_EDGE,
                 debounce_ms=HALL_DEBOUNCE_MS,
-                min_interval_s=HALL_MIN_INTERVAL_S,
             )
             print()
             self.hall_sensor.reset_count()

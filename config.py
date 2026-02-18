@@ -9,9 +9,7 @@ TOF_I2C_ADDRESS = 0x29  # Default VL53L0X address
 HALL_ENABLED = True  # Set False to disable spin counting
 HALL_SENSOR_PIN = 22  # GPIO pin for Hall sensor input
 HALL_PULL_UP = True  # Use pull-up resistor if sensor is open-collector
-HALL_EDGE = "FALLING"  # "FALLING", "RISING", or "BOTH"
-HALL_DEBOUNCE_MS = 10  # GPIO debounce time in milliseconds
-HALL_MIN_INTERVAL_S = 0.0  # Optional extra software debounce in seconds
+HALL_DEBOUNCE_MS = 10  # Minimum time between counts in milliseconds
 
 # Measurement settings
 READING_INTERVAL = 1.0  # Read vibration every 1.0 second while measuring

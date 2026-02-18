@@ -1,4 +1,5 @@
 smbus-cffi>=0.5.1
 RPi.GPIO>=0.7.0
+gpiozero>=1.6.2
 adafruit-blinka>=8.0.0
 adafruit-circuitpython-vl53l0x>=3.5.0
