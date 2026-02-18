@@ -47,6 +47,7 @@ class MeasurementSystem:
             self.hall_sensor = HallSensor(
                 pin=HALL_SENSOR_PIN,
                 pull_up=HALL_PULL_UP,
+                poll_hz=800,  # you can raise this if you have very high RPM / many pulses per rev
             )
             print()
             self.hall_sensor.reset_count()

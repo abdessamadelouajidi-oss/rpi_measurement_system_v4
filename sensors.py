@@ -122,18 +122,23 @@ class Accelerometer(Sensor):
 
 class HallSensor:
     """
-    Hall effect sensor for counting rotations.
-    Your signal is 0->1 when magnet present, so we use GPIO.RISING.
+    Threaded polling hall sensor.
+    Counts 0->1 transitions (magnet present).
+    BCM numbering.
     """
 
-    def __init__(self, pin, pull_up=True, name="HALL_SENSOR"):
+    def __init__(self, pin, pull_up=True, name="HALL_SENSOR", poll_hz=800):
         self.pin = int(pin)
         self.pull_up = bool(pull_up)
         self.name = name
+        self.poll_hz = int(poll_hz)
 
         self.GPIO = None
         self._count = 0
         self._lock = threading.Lock()
+
+        self._stop = threading.Event()
+        self._thread = None
 
         try:
             import RPi.GPIO as GPIO
@@ -142,37 +147,39 @@ class HallSensor:
             GPIO.setwarnings(False)
             GPIO.setmode(GPIO.BCM)
 
-            # ---- KEY FIX for "failed to add edge detection" ----
-            # Clear any stale event detection + reset this pin before re-adding.
+            # Reset just this pin (helps with restarts)
             try:
-                GPIO.remove_event_detect(self.pin)
+                GPIO.cleanup(self.pin)
             except Exception:
                 pass
-            try:
-                GPIO.cleanup(self.pin)  # only this pin
-            except Exception:
-                pass
-            # ----------------------------------------------------
 
             pull = GPIO.PUD_UP if self.pull_up else GPIO.PUD_DOWN
             GPIO.setup(self.pin, GPIO.IN, pull_up_down=pull)
 
-            GPIO.add_event_detect(
-                self.pin,
-                GPIO.RISING,
-                callback=self._on_detected,
-            )
+            self._thread = threading.Thread(target=self._run, daemon=True)
+            self._thread.start()
 
-            print(f"[{self.name}] Initialized on GPIO {self.pin} (edge=RISING)")
+            print(f"[{self.name}] Thread polling on GPIO {self.pin} at ~{self.poll_hz} Hz (counts 0->1)")
 
         except ImportError:
             print(f"[{self.name}] Warning: RPi.GPIO not available, using simulated mode")
         except Exception as e:
-            print(f"[{self.name}] Warning : Could not Initialize - {type(e).__name__}: {e}")
+            print(f"[{self.name}] Warning: Could not initialize - {type(e).__name__}: {e}")
 
-    def _on_detected(self, _channel=None):
-        with self._lock:
-            self._count += 1
+    def _run(self):
+        period = 1.0 / self.poll_hz if self.poll_hz > 0 else 0.001
+        last = self.GPIO.input(self.pin)
+
+        while not self._stop.is_set():
+            cur = self.GPIO.input(self.pin)
+
+            # Count 0 -> 1 transition
+            if last == 0 and cur == 1:
+                with self._lock:
+                    self._count += 1
+
+            last = cur
+            time.sleep(period)
 
     def get_count(self):
         with self._lock:
@@ -183,12 +190,12 @@ class HallSensor:
             self._count = 0
 
     def cleanup(self):
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=1.0)
+
         if self.GPIO is None:
             return
-        try:
-            self.GPIO.remove_event_detect(self.pin)
-        except Exception:
-            pass
         try:
             self.GPIO.cleanup(self.pin)
         except Exception:
