@@ -5,24 +5,16 @@ from abc import ABC, abstractmethod
 
 
 class Sensor(ABC):
-    """Base class for sensors."""
-
     @abstractmethod
     def read(self):
-        """Read sensor data and return it."""
         raise NotImplementedError
 
 
 class Accelerometer(Sensor):
-    """
-    Simple I2C accelerometer (MMA8452 / MMA845x family).
-    Provides x, y, z acceleration values.
-    """
-
     WHO_AM_I = 0x0D
     CTRL_REG1 = 0x2A
     XYZ_DATA_CFG = 0x0E
-    OUT_X_MSB = 0x01  # start of XYZ data
+    OUT_X_MSB = 0x01
 
     def __init__(self, i2c_address=0x1D, bus=1, auto_detect=True):
         self.bus = bus
@@ -31,7 +23,6 @@ class Accelerometer(Sensor):
         try:
             self.i2c = smbus.SMBus(bus)
 
-            # --- Address auto-detect (0x1D vs 0x1C) ---
             if auto_detect:
                 found = None
                 for addr in (i2c_address, 0x1D, 0x1C):
@@ -62,30 +53,18 @@ class Accelerometer(Sensor):
             self.i2c = None
 
     def _standby(self):
-        try:
-            ctrl = self.i2c.read_byte_data(self.i2c_address, self.CTRL_REG1)
-            self.i2c.write_byte_data(self.i2c_address, self.CTRL_REG1, ctrl & ~0x01)
-            time.sleep(0.05)
-            print("[ACCELEROMETER] Set to STANDBY mode")
-        except OSError as e:
-            raise OSError(f"STANDBY failed (errno={getattr(e,'errno',None)}): {e}") from e
+        ctrl = self.i2c.read_byte_data(self.i2c_address, self.CTRL_REG1)
+        self.i2c.write_byte_data(self.i2c_address, self.CTRL_REG1, ctrl & ~0x01)
+        time.sleep(0.05)
 
     def _active(self):
-        try:
-            ctrl = self.i2c.read_byte_data(self.i2c_address, self.CTRL_REG1)
-            self.i2c.write_byte_data(self.i2c_address, self.CTRL_REG1, ctrl | 0x01)
-            time.sleep(0.1)
-            print("[ACCELEROMETER] Set to ACTIVE mode")
-        except OSError as e:
-            raise OSError(f"ACTIVE failed (errno={getattr(e,'errno',None)}): {e}") from e
+        ctrl = self.i2c.read_byte_data(self.i2c_address, self.CTRL_REG1)
+        self.i2c.write_byte_data(self.i2c_address, self.CTRL_REG1, ctrl | 0x01)
+        time.sleep(0.1)
 
     def _set_range_8g(self):
-        try:
-            self.i2c.write_byte_data(self.i2c_address, self.XYZ_DATA_CFG, 0x02)
-            time.sleep(0.05)
-            print("[ACCELEROMETER] Set range to ±8g")
-        except OSError as e:
-            raise OSError(f"Set range failed (errno={getattr(e,'errno',None)}): {e}") from e
+        self.i2c.write_byte_data(self.i2c_address, self.XYZ_DATA_CFG, 0x02)
+        time.sleep(0.05)
 
     def read(self):
         if self.i2c is None:
@@ -103,12 +82,7 @@ class Accelerometer(Sensor):
             z = (z_raw / 1024.0) * 9.81
 
             return {"x": round(x, 2), "y": round(y, 2), "z": round(z, 2)}
-
-        except OSError as e:
-            print(f"[ACCELEROMETER] Read OSError (errno={getattr(e,'errno',None)}): {e}")
-            return {"x": 0.0, "y": 0.0, "z": 0.0}
-        except Exception as e:
-            print(f"[ACCELEROMETER] Read error: {e}")
+        except Exception:
             return {"x": 0.0, "y": 0.0, "z": 0.0}
 
     @staticmethod
@@ -123,15 +97,24 @@ class Accelerometer(Sensor):
 class HallSensor:
     """
     Threaded polling hall sensor.
-    Counts HIGH -> LOW transitions (1->0).
-    BCM numbering.
+    Counts ONLY ONE per "interaction":
+      - counts on HIGH -> LOW
+      - then locks until signal returns to HIGH and stays stable for a few samples
     """
 
-    def __init__(self, pin, pull_up=True, name="HALL_SENSOR", poll_hz=800):
+    def __init__(
+        self,
+        pin,
+        pull_up=True,
+        name="HALL_SENSOR",
+        poll_hz=800,
+        stable_samples=5,   # how many consecutive samples must be HIGH before re-arming
+    ):
         self.pin = int(pin)
         self.pull_up = bool(pull_up)
         self.name = name
         self.poll_hz = int(poll_hz)
+        self.stable_samples = max(1, int(stable_samples))
 
         self.GPIO = None
         self._count = 0
@@ -147,7 +130,6 @@ class HallSensor:
             GPIO.setwarnings(False)
             GPIO.setmode(GPIO.BCM)
 
-            # Reset just this pin (helps with restarts)
             try:
                 GPIO.cleanup(self.pin)
             except Exception:
@@ -159,7 +141,10 @@ class HallSensor:
             self._thread = threading.Thread(target=self._run, daemon=True)
             self._thread.start()
 
-            print(f"[{self.name}] Thread polling on GPIO {self.pin} at ~{self.poll_hz} Hz (counts 1->0)")
+            print(
+                f"[{self.name}] Polling GPIO {self.pin} at ~{self.poll_hz} Hz "
+                f"(one-count-per-interaction, stable_samples={self.stable_samples})"
+            )
 
         except ImportError:
             print(f"[{self.name}] Warning: RPi.GPIO not available, using simulated mode")
@@ -168,15 +153,32 @@ class HallSensor:
 
     def _run(self):
         period = 1.0 / self.poll_hz if self.poll_hz > 0 else 0.001
+
+        # Armed means "ready to count the next HIGH->LOW"
+        armed = True
+        high_streak = 0
+
         last = self.GPIO.input(self.pin)
 
         while not self._stop.is_set():
             cur = self.GPIO.input(self.pin)
 
-            # Count HIGH -> LOW transition
-            if last == 1 and cur == 0:
-                with self._lock:
-                    self._count += 1
+            if armed:
+                # Count one on HIGH -> LOW transition
+                if last == 1 and cur == 0:
+                    with self._lock:
+                        self._count += 1
+                    armed = False
+                    high_streak = 0
+            else:
+                # Not armed: wait until it returns HIGH and stays HIGH for N samples
+                if cur == 1:
+                    high_streak += 1
+                    if high_streak >= self.stable_samples:
+                        armed = True
+                        high_streak = 0
+                else:
+                    high_streak = 0
 
             last = cur
             time.sleep(period)
@@ -203,11 +205,6 @@ class HallSensor:
 
 
 class ToFSensor(Sensor):
-    """
-    Time-of-flight distance sensor using Adafruit CircuitPython drivers.
-    Supports VL53L0X via adafruit-circuitpython-vl53l0x.
-    """
-
     def __init__(self, i2c_address=0x29):
         self._device = None
         self.i2c_address = i2c_address
@@ -220,12 +217,6 @@ class ToFSensor(Sensor):
             i2c = busio.I2C(board.SCL, board.SDA)
             self._device = adafruit_vl53l0x.VL53L0X(i2c)
 
-            if self.i2c_address != 0x29:
-                if hasattr(self._device, "set_address"):
-                    self._device.set_address(self.i2c_address)
-                else:
-                    print("[TOF] Warning: driver does not support set_address")
-
             print(f"[TOF] Initialized VL53L0X on I2C (0x{self.i2c_address:02X})")
 
         except Exception as e:
@@ -236,10 +227,7 @@ class ToFSensor(Sensor):
     def read(self):
         if self._device is None:
             return {"distance_mm": 0.0}
-
         try:
-            distance = self._device.range
-            return {"distance_mm": float(distance)}
-        except Exception as e:
-            print(f"[TOF] Read error: {e}")
+            return {"distance_mm": float(self._device.range)}
+        except Exception:
             return {"distance_mm": 0.0}
