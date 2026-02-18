@@ -94,6 +94,7 @@ class MeasurementSystem:
                 f"Y={accel_data['y']:+.2f}m/s² "
                 f"Z={accel_data['z']:+.2f}m/s²"
             )
+            print(f"[{timestamp}] Spins={spin_count}")
             if self.tof:
                 print(f"[{timestamp}] Distance - D={distance_text}")
         except Exception as e:
