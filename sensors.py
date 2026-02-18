@@ -120,10 +120,11 @@ class Accelerometer(Sensor):
         return raw
 
 
+
 class HallSensor:
     """
     Threaded polling hall sensor.
-    Counts 0->1 transitions (magnet present).
+    Counts 1->0 transitions (high to low).
     BCM numbering.
     """
 
@@ -147,7 +148,6 @@ class HallSensor:
             GPIO.setwarnings(False)
             GPIO.setmode(GPIO.BCM)
 
-            # Reset just this pin (helps with restarts)
             try:
                 GPIO.cleanup(self.pin)
             except Exception:
@@ -159,7 +159,7 @@ class HallSensor:
             self._thread = threading.Thread(target=self._run, daemon=True)
             self._thread.start()
 
-            print(f"[{self.name}] Thread polling on GPIO {self.pin} at ~{self.poll_hz} Hz (counts 0->1)")
+            print(f"[{self.name}] Thread polling on GPIO {self.pin} at ~{self.poll_hz} Hz (counts 1->0)")
 
         except ImportError:
             print(f"[{self.name}] Warning: RPi.GPIO not available, using simulated mode")
@@ -173,8 +173,8 @@ class HallSensor:
         while not self._stop.is_set():
             cur = self.GPIO.input(self.pin)
 
-            # Count 0 -> 1 transition
-            if last == 0 and cur == 1:
+            # Count HIGH -> LOW transition
+            if last == 1 and cur == 0:
                 with self._lock:
                     self._count += 1
 
@@ -200,6 +200,7 @@ class HallSensor:
             self.GPIO.cleanup(self.pin)
         except Exception:
             pass
+
 
 
 class ToFSensor(Sensor):
