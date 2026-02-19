@@ -141,18 +141,18 @@ class MeasurementSystem:
 
         self.save_readings_to_csv()
 
-        success = False
-        for mount_path in mount_paths:
-            try:
-                usb_csv_path = self._build_usb_csv_path(mount_path)
-                shutil.copy2(self.csv_output_path, usb_csv_path)
-                print(f"[USB] Copied CSV to {usb_csv_path}")
-                success = True
-            except Exception as e:
-                print(f"[USB] Copy failed for {mount_path}: {e}")
+ #       success = False
+ #       for mount_path in mount_paths:
+ #           try:
+ #               usb_csv_path = self._build_usb_csv_path(mount_path)
+ #               shutil.copy2(self.csv_output_path, usb_csv_path)
+ #               print(f"[USB] Copied CSV to {usb_csv_path}")
+ #               success = True
+ #           except Exception as e:
+ #               print(f"[USB] Copy failed for {mount_path}: {e}")
 
-        if not success:
-            print("[USB] No copies succeeded.")
+ #       if not success:
+ #           print("[USB] No copies succeeded.")
 
     def _check_usb_copy(self):
         """Detect USB insertion/removal and copy CSV when inserted."""
