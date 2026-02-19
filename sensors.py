@@ -152,7 +152,7 @@ class HallSensor:
             print(f"[{self.name}] Warning: Could not initialize - {type(e).__name__}: {e}")
 
     def _run(self):
-        period = 1.0 / self.poll_hz if self.poll_hz > 0 else 0.001
+        period = 3.0 / self.poll_hz if self.poll_hz > 0 else 0.001
 
         # Armed means "ready to count the next HIGH->LOW"
         armed = True
