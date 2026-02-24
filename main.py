@@ -139,7 +139,7 @@ class MeasurementSystem:
             print("[USB] No readings to copy yet.")
             return
 
-     #   self.save_readings_to_csv()
+        self.save_readings_to_csv()
 
         success = False
         for mount_path in mount_paths:
@@ -224,7 +224,8 @@ class MeasurementSystem:
         except Exception:
             pass
 
-        self.save_readings_to_csv()
+        
+        # self.save_readings_to_csv()
         if self.hall_sensor:
             self.hall_sensor.reset_count()
 
