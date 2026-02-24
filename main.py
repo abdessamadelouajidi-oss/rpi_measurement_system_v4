@@ -185,7 +185,7 @@ class MeasurementSystem:
                     self.last_usb_check_time = current_time
                     self._check_usb_copy()
 
-                time.sleep(0.05)
+                time.sleep(0.01)
 
         except KeyboardInterrupt:
             print("\n\nKeyboard interrupt received.")
