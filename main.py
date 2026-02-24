@@ -177,7 +177,7 @@ class MeasurementSystem:
         try:
             while self.running:
                 current_time = time.time()
-                if current_time - self.last_reading_time >= READING_INTERVAL:
+            ##    if current_time - self.last_reading_time >= READING_INTERVAL:
                     self.read_vibration()
                     self.last_reading_time = current_time
 
