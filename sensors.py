@@ -71,7 +71,7 @@ class Accelerometer(Sensor):
             return {"x": 999, "y": 999, "z": 999}
         
         try:
-             """
+             
             data = self.i2c.read_i2c_block_data(self.i2c_address, self.OUT_X_MSB, 6)
 
             x_raw = self._convert_14bit(data[0], data[1])
@@ -81,8 +81,8 @@ class Accelerometer(Sensor):
             x = (x_raw / 1024.0) * 9.81
             y = (y_raw / 1024.0) * 9.81
             z = (z_raw / 1024.0) * 9.81
-             """
-             x=y=z=0.0
+            
+            
             return {"x": round(x, 2), "y": round(y, 2), "z": round(z, 2)}
         except Exception:
             return {"x": 0.0, "y": 0.0, "z": 0.0}

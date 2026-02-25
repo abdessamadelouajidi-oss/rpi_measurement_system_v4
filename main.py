@@ -178,14 +178,14 @@ class MeasurementSystem:
             while self.running:
                 current_time = time.time()
                 if current_time - self.last_reading_time >= READING_INTERVAL:
-                  #  self.read_vibration()
+                    self.read_vibration()
                     self.last_reading_time = current_time
 
                 if current_time - self.last_usb_check_time >= USB_CHECK_INTERVAL:
                     self.last_usb_check_time = current_time
                     self._check_usb_copy()
 
-                time.sleep(0.01)
+               # time.sleep(0.01)
 
         except KeyboardInterrupt:
             print("\n\nKeyboard interrupt received.")
