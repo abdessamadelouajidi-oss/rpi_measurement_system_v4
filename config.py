@@ -11,7 +11,7 @@ HALL_SENSOR_PIN = 17  # GPIO pin for Hall sensor input
 HALL_PULL_UP = True  # Use pull-up resistor if sensor is open-collector
 
 # Measurement settings
-READING_INTERVAL = 0.01  # Read vibration every 1.0 second while measuring
+READING_INTERVAL = 0.01/2  # Read vibration every 1.0 second while measuring
 
 # CSV output
 CSV_OUTPUT_PATH = "measurements.csv"  # Saved after shutdown
